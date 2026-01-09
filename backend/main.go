@@ -3,10 +3,11 @@ package main
 import (
 	"log"
 	"net/http"
+	"os" // <--- ADDED: Necessary for Cloud Environment Variables
 	"time"
 
 	"github.com/gin-contrib/cors"
-	"github.com/gin-contrib/static"
+	// "github.com/gin-contrib/static" <--- REMOVED: Vercel will host the frontend, not Go.
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -25,9 +26,9 @@ type Entry struct {
 	ID        uint `gorm:"primaryKey"`
 	UserID    uint
 	Title     string
-	Content   string `gorm:"type:text"` // Stores Encrypted Data
+	Content   string `gorm:"type:text"`
 	Mood      string
-	Date      string // Format YYYY-MM-DD
+	Date      string
 	CreatedAt time.Time
 }
 
@@ -36,35 +37,37 @@ var db *gorm.DB
 var jwtSecret = []byte("super-secret-key-change-this")
 
 func main() {
-	// 1. Connect to Database
-	// CHANGE 'postgres' (user) and 'password' to your real postgres credentials
-	dsn := "host=localhost user=postgres password=3079 dbname=diarydb port=5432 sslmode=disable"
+	// 1. Database Connection (Dynamic)
+	// We check if the cloud provided a database URL. If not, we use your local one.
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		// Your LOCAL fallback (keep this for when you work on your laptop)
+		dsn = "host=localhost user=postgres password=3079 dbname=diarydb port=5432 sslmode=disable"
+	}
+
 	var err error
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
-	// 2. Auto Migrate (Create tables automatically based on structs)
+	// 2. Auto Migrate
 	db.AutoMigrate(&User{}, &Entry{})
 
 	// 3. Setup Router
 	r := gin.Default()
 
-	// 4. CORS Setup (Allow frontend to talk to backend)
+	// 4. CORS Setup (Updated for Cloud)
+	// We allow ALL origins temporarily so Vercel can talk to Render easily.
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://localhost:5173"} // Vite default port
+	config.AllowAllOrigins = true
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
 	r.Use(cors.New(config))
 
-	// ... inside main() ...
-	// --- NEW: Serve Frontend Static Files ---
-	// This tells Go: "If a user asks for '/', look in the '../frontend/dist' folder"
-	r.Use(static.Serve("/", static.LocalFile("../frontend/dist", true)))
+	// --- REMOVED STATIC FILE SERVING ---
+	// Since we are using Vercel for the Frontend, the Go backend
+	// strictly handles JSON data only. It does not serve HTML.
 
-	// ----------------------------------------
-
-	// ... existing routes (r.POST("/signup", ...)) ...
 	// 5. Routes
 	r.POST("/signup", signup)
 	r.POST("/login", login)
@@ -78,10 +81,16 @@ func main() {
 		authorized.DELETE("/entries/:id", deleteEntry)
 	}
 
-	r.Run(":8080")
+	// 6. Port Configuration (Dynamic)
+	// Render assigns a random port (e.g., 10000). We must listen on that port.
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // Default for local
+	}
+	r.Run(":" + port)
 }
 
-// --- Handlers ---
+// --- Handlers (Keep these exactly the same) ---
 
 func signup(c *gin.Context) {
 	var body struct {
@@ -125,10 +134,9 @@ func login(c *gin.Context) {
 		return
 	}
 
-	// Generate JWT
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub": user.ID,
-		"exp": time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
+		"exp": time.Now().Add(time.Hour * 24 * 7).Unix(),
 	})
 	tokenString, _ := token.SignedString(jwtSecret)
 
@@ -136,7 +144,7 @@ func login(c *gin.Context) {
 }
 
 func createEntry(c *gin.Context) {
-	userID := c.GetFloat64("userID") // From Middleware
+	userID := c.GetFloat64("userID")
 	var entry Entry
 	if err := c.BindJSON(&entry); err != nil {
 		return
@@ -154,8 +162,6 @@ func getEntries(c *gin.Context) {
 	var entries []Entry
 	query := db.Where("user_id = ?", userID)
 
-	// Note: We cannot search CONTENT on the server because it is encrypted!
-	// We can only search Titles or Dates server-side.
 	if search != "" {
 		query = query.Where("title ILIKE ?", "%"+search+"%")
 	}
@@ -192,7 +198,6 @@ func deleteEntry(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Deleted"})
 }
 
-// --- Middleware ---
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString := c.GetHeader("Authorization")

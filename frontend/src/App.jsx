@@ -5,7 +5,7 @@ import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import { Moon, Sun, Trash2, Edit2, Search, Lock, Plus } from 'lucide-react';
 
-const API_URL = "";
+import API_URL from './config'; 
 
 function App() {
   const [user, setUser] = useState(null);
