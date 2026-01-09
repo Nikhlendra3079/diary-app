@@ -1,0 +1,19 @@
+CREATE DATABASE diarydb;
+\c diarydb
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE entries (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id),
+    title TEXT,
+    content TEXT, -- This will store ENCRYPTED content
+    mood VARCHAR(20),
+    date DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

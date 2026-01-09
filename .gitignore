@@ -1,0 +1,39 @@
+# --- General System Files ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Backend (Go) ---
+# Ignore the actual compiled binary/executable
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+backend/main
+backend/diary-backend
+
+# Ignore temporary test binaries
+*.test
+
+# --- Frontend (Node/React) ---
+# Dependencies (NEVER upload this, it's huge)
+frontend/node_modules/
+
+# Build Logs
+frontend/npm-debug.log
+frontend/yarn-error.log
+frontend/pnpm-debug.log
+
+# Build Output (The 'dist' folder we just made)
+# We ignore this because you can always regenerate it with 'npm run build'
+frontend/dist/
+
+# --- Security & Environment ---
+# Ignore environment config files that might contain passwords
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
